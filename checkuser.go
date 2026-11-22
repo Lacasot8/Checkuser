@@ -73,19 +73,41 @@ func (c Config) check(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, Result{OK: true, User: user, UUID: uuid, HWID: hwid, Limit: limit, Source: "local", Message: "usuário encontrado", CheckedAt: time.Now().UTC().Format(time.RFC3339) })
 }
 
-func (c Config) fromDragonCore(user, uuid, hwid string) (Result, bool) {
+func (c Config) fromDragonCore(user, uuid, hwid string) (map[string]interface{}, bool) {
 	// O cliente possui timeout próprio para evitar que um DragonCore indisponível bloqueie o fallback local.
 	client := &http.Client{Timeout: c.RequestTimeout}
-	u, err := url.Parse(c.DragonCoreURL + c.DragonCorePath); if err != nil { return Result{}, false }
+	u, err := url.Parse(c.DragonCoreURL + c.DragonCorePath); if err != nil { return nil, false }
 	v := u.Query(); v.Set("user", user); v.Set("uuid", uuid); v.Set("hwid", hwid); u.RawQuery = v.Encode()
-	resp, err := client.Get(u.String()); if err != nil { return Result{}, false }; defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 { return Result{}, false }
-	var raw map[string]interface{}; if json.NewDecoder(resp.Body).Decode(&raw) != nil { return Result{}, false }
-	result := Result{OK: true, User: user, UUID: uuid, HWID: hwid, Source: "dragoncore", Message: "resposta do DragonCore", CheckedAt: time.Now().UTC().Format(time.RFC3339)}
-	if value, ok := raw["ok"].(bool); ok { result.OK = value }
-	if value, ok := raw["limit"].(float64); ok { result.Limit = int(value) }
-	if value, ok := raw["message"].(string); ok { result.Message = value }
-	return result, true
+	resp, err := client.Get(u.String()); if err != nil { return nil, false }; defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 { return nil, false }
+	// Não normalizar nem descartar os campos do painel: expiration_date,
+	// expiration_days, count_connections, limit_connections e HTML de mensagem.
+	var raw map[string]interface{}; if json.NewDecoder(resp.Body).Decode(&raw) != nil { return nil, false }
+	if _, ok := raw["user"]; !ok { raw["user"] = user }
+	if _, ok := raw["username"]; !ok { raw["username"] = user }
+	if _, ok := raw["uuid"]; !ok && uuid != "" { raw["uuid"] = uuid }
+	if _, ok := raw["hwid"]; !ok && hwid != "" { raw["hwid"] = hwid }
+	if _, ok := raw["source"]; !ok { raw["source"] = "dragoncore" }
+	if _, ok := raw["checked_at"]; !ok { raw["checked_at"] = time.Now().UTC().Format(time.RFC3339) }
+	if _, ok := raw["message_html"]; !ok {
+		if html := panelHTML(raw, user); html != "" { raw["message_html"] = html }
+	}
+	return raw, true
+}
+
+func panelHTML(raw map[string]interface{}, fallbackUser string) string {
+	username := valueString(raw, "username", fallbackUser)
+	expiration := valueString(raw, "expiration_date", "")
+	days := valueString(raw, "expiration_days", "")
+	connections := valueString(raw, "count_connections", "")
+	limit := valueString(raw, "limit_connections", "")
+	if expiration == "" && days == "" && connections == "" && limit == "" { return "" }
+	return fmt.Sprintf("<i><b><b>👨‍💻 <font color=\"#00E0FF\">Usuário:</font> <font color=\"#FFFFFF\">%s</font><br>⏳ <font color=\"#00E0FF\">Validade:</font> <font color=\"#FFD700\">%s</font><br>📆 <font color=\"#00E0FF\">Restam:</font> <font color=\"#00FF9C\">%s dias</font><br>🔗 <font color=\"#00E0FF\">Conexões:</font> <font color=\"#FF5555\">%s</font>|<font color=\"#AAAAAA\">%s</font><br><br>", username, expiration, days, connections, limit)
+}
+
+func valueString(raw map[string]interface{}, key, fallback string) string {
+	if value, ok := raw[key]; ok && value != nil { return fmt.Sprint(value) }
+	return fallback
 }
 
 func readLimit(path, user string) (int, bool, error) {

@@ -31,7 +31,7 @@ A consulta é feita por GET:
 http://IP-DA-VPS:2052/check?user=cliente01&uuid=UUID&hwid=HWID
 ```
 
-A resposta é JSON e informa `ok`, `user`, `limit`, `source`, `message` e `checked_at`. O endpoint `/health` pode ser usado para verificar o serviço. Usuários desconhecidos retornam HTTP 404; parâmetros inválidos retornam 400.
+A resposta é JSON. Quando o DragonCore responder, o CheckUser preservará os campos do painel, incluindo `username`, `expiration_date`, `expiration_days`, `count_connections` e `limit_connections`, sem descartá-los. Também será criado o campo `message_html` com a mensagem colorida para clientes que aceitam HTML. O endpoint `/health` pode ser usado para verificar o serviço. Usuários desconhecidos retornam HTTP 404; parâmetros inválidos retornam 400.
 
 ## DragonCore e túnel
 
