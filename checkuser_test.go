@@ -68,6 +68,39 @@ func TestReadAccountExpiration(t *testing.T) {
 	}
 }
 
+func TestCheckDTunnelPathAndDeviceID(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "checkuser-dtunnel-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	limits := filepath.Join(tempDir, "usuarios.db")
+	shadow := filepath.Join(tempDir, "shadow")
+	if err := ioutil.WriteFile(limits, []byte("cliente01 2\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := ioutil.WriteFile(shadow, []byte("other:x:1:1:1:1::20000:\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{LimitsFile: limits, ShadowFile: shadow}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/check", cfg.check)
+	mux.HandleFunc("/check/", cfg.check)
+	req := httptest.NewRequest(http.MethodGet, "/check/cliente01?deviceId=abc123", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var got map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["username"] != "cliente01" || got["uuid"] != "abc123" || got["limit_connections"] != float64(2) {
+		t.Errorf("DTunnel route fields incorrect: %#v", got)
+	}
+}
+
 func TestCountSSHProcesses(t *testing.T) {
 	got := countSSHProcesses("sshd\nbash\ndropbear\nsystemd\n")
 	if got != 2 {

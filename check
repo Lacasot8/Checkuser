@@ -24,7 +24,7 @@ show(){
  printf '\033[91m╰──────────────────────────────────────────────────────╯\033[0m\n\n'
  printf '\033[94mLINK PÚBLICO / DTUNNEL\033[0m\n'
  local url; url="$(link)"; [[ -n "$url" ]] && printf '\033[96m%s\033[0m\n' "$url" || printf '\033[33mLink ainda não gerado\033[0m\n'
- printf '\033[94mURL DO VOID PRO+\033[0m\n%s/check?username={username}&uuid={uuid}&hwid={hwid}\n' "${url:-http://IP_DA_VPS:$PORT}"
+ printf '\033[94mURL DO DTUNNEL\033[0m\n%s/check/{username}?deviceId={deviceId}\n' "${url:-http://IP_DA_VPS:$PORT}"
  printf '\033[33mDiagnóstico: journalctl -u %s\033[0m\n\n' "$TUNNEL"
  printf '\033[91m╭──────────────────────────────────────────────────────╮\033[0m\n'
  printf '\033[91m│\033[0m [1] Iniciar serviços                              \033[91m│\033[0m\n'

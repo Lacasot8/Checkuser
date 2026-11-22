@@ -60,6 +60,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", health)
 	mux.HandleFunc("/check", cfg.check)
+	mux.HandleFunc("/check/", cfg.check)
 	mux.HandleFunc("/", info)
 	server := &http.Server{Addr: fmt.Sprintf("%s:%d", cfg.Host, cfg.Port), Handler: logging(mux), ReadHeaderTimeout: 5 * time.Second}
 	log.Printf("CheckUser ouvindo em %s; fallback=%s; dragoncore=%s", server.Addr, cfg.LimitsFile, cfg.DragonCoreURL)
@@ -75,6 +76,15 @@ func (c Config) check(w http.ResponseWriter, r *http.Request) {
 	user, uuid, hwid := q.Get("user"), q.Get("uuid"), q.Get("hwid")
 	if user == "" {
 		user = q.Get("username")
+	}
+	if user == "" && strings.HasPrefix(r.URL.Path, "/check/") {
+		user = strings.TrimPrefix(r.URL.Path, "/check/")
+		if strings.Contains(user, "/") {
+			user = ""
+		}
+	}
+	if uuid == "" {
+		uuid = q.Get("deviceId")
 	}
 	if !safeValue.MatchString(user) || (uuid != "" && !safeValue.MatchString(uuid)) || (hwid != "" && !safeValue.MatchString(hwid)) {
 		writeJSON(w, http.StatusBadRequest, Result{OK: false, User: user, Username: user, Message: "parâmetros inválidos", Source: "validation", CheckedAt: time.Now().UTC().Format(time.RFC3339)})
@@ -283,7 +293,7 @@ func health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"ok": true, "service": "checkuser"})
 }
 func info(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"service": "checkuser", "endpoint": "/check?user=...&uuid=...&hwid=...", "health": "/health"})
+	writeJSON(w, http.StatusOK, map[string]string{"service": "checkuser", "endpoint": "/check?user=...&uuid=...&hwid=... or /check/{username}?deviceId=...", "health": "/health"})
 }
 func writeJSON(w http.ResponseWriter, status int, value interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

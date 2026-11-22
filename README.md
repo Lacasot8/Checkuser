@@ -31,7 +31,13 @@ A consulta é feita por GET:
 http://IP-DA-VPS:2052/check?username=cliente01&uuid=UUID&hwid=HWID
 ```
 
-A resposta é JSON e aceita `username` (ou o alias `user`), `uuid` e `hwid`. Quando o DragonCore responder, o CheckUser preservará os campos reais do painel, incluindo `username`, `expiration_date`, `expiration_days`, `count_connections` e `limit_connections`. Também envia `message_html` neste formato, para clientes que aceitam HTML:
+O CheckUser também aceita a rota usada pelo cliente original do DTunnel, com o usuário no caminho e o ID do aparelho em `deviceId`:
+
+```text
+http://IP-DA-VPS:2052/check/cliente01?deviceId=ID_DO_APARELHO
+```
+
+Para configurar o DTunnel, use `https://SEU-LINK.trycloudflare.com/check/{username}?deviceId={deviceId}`. A resposta é JSON (`application/json`) e inclui `username`, `expiration_date`, `expiration_days`, `count_connections` e `limit_connections`. Quando o DragonCore responder, os campos originais são preservados. Também é enviado `message_html` neste formato, para clientes que aceitam HTML:
 
 ```html
 👤 Nome de usuario: {username}<br>📆 Expira em: {expiration_date}<br>📅 Dias restantes: {expiration_days}<br>🚫 Conexoes: {count_connections}|{limit_connections}
