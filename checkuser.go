@@ -286,6 +286,7 @@ func info(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"service": "checkuser", "endpoint": "/check?user=...&uuid=...&hwid=...", "health": "/health"})
 }
 func writeJSON(w http.ResponseWriter, status int, value interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
 }
