@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+SERVICE=checkuser.service
+TUNNEL=checkuser-tunnel.service
+ENV_FILE=/etc/checkuser/checkuser.env
+
+need_root(){ [[ $EUID -eq 0 ]] || { echo "Execute como root."; exit 1; }; }
+status_line(){ systemctl is-active --quiet "$1" && printf '\033[32mATIVO\033[0m' || printf '\033[31mPARADO\033[0m'; }
+public_link(){ journalctl -u "$TUNNEL" --no-pager -n 80 2>/dev/null | grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true; }
+port(){ awk -F= '$1=="CHECKUSER_PORT"{print $2}' "$ENV_FILE" 2>/dev/null || echo 2052; }
+show(){ clear; echo; echo '  CHECKUSER — PAINEL DE ADMINISTRAÇÃO'; echo '  ----------------------------------'; echo "  Serviço:       $(status_line "$SERVICE")"; echo "  Túnel Cloudflare: $(status_line "$TUNNEL")"; echo "  Porta local:   $(port)"; echo '  Fonte de dados: /root/usuarios.db + DragonCore opcional'; link=$(public_link); echo "  Link público:  ${link:-não disponível}"; echo; echo '  1) Iniciar serviço'; echo '  2) Parar serviço'; echo '  3) Reiniciar serviço'; echo '  4) Consultar status'; echo '  5) Visualizar logs'; echo '  6) Atualizar/gerar link público'; echo '  7) Remover instalação'; echo '  0) Sair'; echo; }
+remove(){ echo; read -r -p 'Digite REMOVER para confirmar: ' x; [[ $x == REMOVER ]] || { echo 'Cancelado.'; return; }; systemctl disable --now "$TUNNEL" "$SERVICE" 2>/dev/null || true; rm -f /etc/systemd/system/$TUNNEL /etc/systemd/system/$SERVICE /usr/local/bin/check; rm -rf /usr/local/lib/checkuser /etc/checkuser; systemctl daemon-reload; echo 'Instalação removida. /root/usuarios.db foi preservado.'; exit 0; }
+need_root
+while true; do show; read -r -p 'Escolha uma opção: ' op; case "$op" in
+1) systemctl start "$SERVICE"; [[ -x /usr/local/bin/cloudflared ]] && systemctl start "$TUNNEL" 2>/dev/null || true; read -r -p 'Enter para continuar...' _;;
+2) systemctl stop "$TUNNEL" "$SERVICE"; read -r -p 'Enter para continuar...' _;;
+3) systemctl restart "$SERVICE"; [[ -x /usr/local/bin/cloudflared ]] && systemctl restart "$TUNNEL" 2>/dev/null || true; read -r -p 'Enter para continuar...' _;;
+4) systemctl --no-pager --full status "$SERVICE" "$TUNNEL"; read -r -p 'Enter para continuar...' _;;
+5) journalctl -u "$SERVICE" -n 80 --no-pager; read -r -p 'Enter para continuar...' _;;
+6) if [[ ! -x /usr/local/bin/cloudflared ]]; then echo 'cloudflared não está instalado. Instale-o e tente novamente.'; else systemctl restart "$TUNNEL"; sleep 2; echo "Link: $(public_link)"; fi; read -r -p 'Enter para continuar...' _;;
+7) remove;;
+0|q|Q) exit 0;; *) echo 'Opção inválida.'; sleep 1;; esac; done
