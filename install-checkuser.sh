@@ -6,8 +6,8 @@ APP_DIR="/usr/local/lib/checkuser"
 ETC_DIR="/etc/checkuser"
 BIN="$APP_DIR/checkuser"
 ENV_FILE="$ETC_DIR/checkuser.env"
-SERVICE="check-dt-voidpro.service"
-TUNNEL_SERVICE="check-dt-voidpro-tunnel.service"
+SERVICE="checkuser-lacasot8.service"
+TUNNEL_SERVICE="checkuser-lacasot8-tunnel.service"
 
 fail(){ echo "Erro: $*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || fail "execute como root (sudo -i)."
@@ -41,17 +41,15 @@ if [[ ! -x /usr/local/bin/cloudflared ]]; then
   /usr/local/bin/cloudflared --version >/dev/null || fail "download do cloudflared falhou."
 fi
 
-# Migra unidades antigas da primeira versão sem tocar no banco do usuário.
-systemctl disable --now checkuser.service checkuser-tunnel.service 2>/dev/null || true
 mkdir -p "$APP_DIR" "$ETC_DIR"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 if [[ -n "${CHECKUSER_SOURCE_DIR:-}" && -f "$CHECKUSER_SOURCE_DIR/checkuser.go" ]]; then
   cp "$CHECKUSER_SOURCE_DIR"/* "$work/"
-  menu_source="$CHECKUSER_SOURCE_DIR/check"
+  menu_source="$CHECKUSER_SOURCE_DIR/ck"
 else
   git clone --depth 1 "$REPO_URL" "$work/src" >/dev/null 2>&1
   cp "$work/src"/* "$work/"
-  menu_source="$work/src/check"
+  menu_source="$work/src/ck"
 fi
 (cd "$work" && GOOS=linux GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "$BIN" .)
 chmod 0755 "$BIN"
@@ -59,7 +57,7 @@ chmod 0755 "$BIN"
 if [[ ! -f "$ENV_FILE" ]]; then
   cat >"$ENV_FILE" <<'EOF'
 CHECKUSER_HOST=0.0.0.0
-CHECKUSER_PORT=2052
+CHECKUSER_PORT=2053
 CHECKUSER_LIMITS_FILE=/root/usuarios.db
 CHECKUSER_DRAGONCORE_URL=http://127.0.0.1:9090
 CHECKUSER_DRAGONCORE_PATH=/check
@@ -67,7 +65,16 @@ CHECKUSER_TIMEOUT_SECONDS=5
 EOF
   chmod 0600 "$ENV_FILE"
 fi
-cat > /etc/systemd/system/$SERVICE <<EOF
+# Porta 2052 é usada pela instalação Willapela. Mova somente o valor legado
+# padrão deste Checkuser para a porta isolada; preserve demais configurações.
+if grep -qx 'CHECKUSER_PORT=2052' "$ENV_FILE"; then
+  sed -i 's/^CHECKUSER_PORT=2052$/CHECKUSER_PORT=2053/' "$ENV_FILE"
+  echo "Porta ajustada para 2053 para não conflitar com outro Checkuser."
+fi
+APP_PORT="$(awk -F= '$1=="CHECKUSER_PORT"{print $2}' "$ENV_FILE" | tail -1)"
+[[ "$APP_PORT" =~ ^[0-9]{1,5}$ ]] && (( APP_PORT >= 1 && APP_PORT <= 65535 )) || fail "CHECKUSER_PORT inválida: $APP_PORT"
+
+cat > "/etc/systemd/system/$SERVICE" <<EOF
 [Unit]
 Description=CheckUser HTTP service
 After=network-online.target
@@ -88,23 +95,27 @@ ReadWritePaths=/root
 [Install]
 WantedBy=multi-user.target
 EOF
-cat > /etc/systemd/system/$TUNNEL_SERVICE <<'EOF'
+cat > "/etc/systemd/system/$TUNNEL_SERVICE" <<EOF
 [Unit]
-Description=Cloudflare quick tunnel for CheckUser
-After=check-dt-voidpro.service network-online.target
-Requires=check-dt-voidpro.service
+Description=Cloudflare quick tunnel for Lacasot8 CheckUser
+After=$SERVICE network-online.target
+Requires=$SERVICE
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:2052
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:$APP_PORT
 Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 EOF
-install -m 0755 "$menu_source" /usr/local/bin/check
+install -m 0755 "$menu_source" /usr/local/bin/ck
+# Só depois que o binário, os serviços novos e ck estão prontos, limpe os
+# nomes legados da instalação própria. Não toca em check-dt-voidpro*.
+systemctl disable --now checkuser.service checkuser-tunnel.service 2>/dev/null || true
+rm -f /etc/systemd/system/checkuser.service /etc/systemd/system/checkuser-tunnel.service /usr/local/bin/check
 systemctl daemon-reload
 systemctl enable --now "$SERVICE"
 systemctl enable --now "$TUNNEL_SERVICE"
-echo "CheckUser instalado. Execute: check"
+echo "CheckUser instalado. Execute: ck"

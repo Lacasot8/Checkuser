@@ -47,7 +47,7 @@ var safeValue = regexp.MustCompile(`^[A-Za-z0-9._:@+\-]{1,128}$`)
 
 func main() {
 	cfg := Config{
-		Host: os.Getenv("CHECKUSER_HOST"), Port: envInt("CHECKUSER_PORT", 2052),
+		Host: os.Getenv("CHECKUSER_HOST"), Port: envInt("CHECKUSER_PORT", 2053),
 		LimitsFile:     envString("CHECKUSER_LIMITS_FILE", "/root/usuarios.db"),
 		ShadowFile:     envString("CHECKUSER_SHADOW_FILE", "/etc/shadow"),
 		DragonCoreURL:  strings.TrimRight(os.Getenv("CHECKUSER_DRAGONCORE_URL"), "/"),

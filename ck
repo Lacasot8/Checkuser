@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-SERVICE=check-dt-voidpro.service
-TUNNEL=check-dt-voidpro-tunnel.service
+SERVICE=checkuser-lacasot8.service
+TUNNEL=checkuser-lacasot8-tunnel.service
 ENV_FILE=/etc/checkuser/checkuser.env
-PORT=2052
+PORT=2053
 [[ -f "$ENV_FILE" ]] && PORT="$(awk -F= '$1=="CHECKUSER_PORT"{print $2}' "$ENV_FILE" | tail -1)"
 
 need_root(){ [[ $EUID -eq 0 ]] || { echo 'Execute como root.'; exit 1; }; }
@@ -15,7 +15,7 @@ show(){
  clear
  box
  printf '\033[91m│\033[0m %-52s\033[91m│\033[0m\n' 'CHECKUSER CONTROL PANEL'
- printf '\033[91m│\033[0m \033[94m%-52s\033[0m\033[91m│\033[0m\n' 'DTunnel  •  Void Pro+  •  DragonCore'
+ printf '\033[91m│\033[0m \033[94m%-52s\033[0m\033[91m│\033[0m\n' 'DTunnel  •  Void Pro+  •  Checkuser Lacasot8'
  printf '\033[91m├──────────────────────────────────────────────────────┤\033[0m\n'
  printf '\033[91m│\033[0m CheckUser:  %b\n' "$(state "$SERVICE")"
  printf '\033[91m│\033[0m Cloudflare: %b\n' "$(state "$TUNNEL")"
@@ -42,10 +42,10 @@ remove(){
  echo; read -r -p 'Digite REMOVER para confirmar: ' answer
  [[ "$answer" == REMOVER ]] || { echo 'Cancelado.'; wait_key; return; }
  systemctl disable --now "$TUNNEL" "$SERVICE" 2>/dev/null || true
- rm -f "/etc/systemd/system/$TUNNEL" "/etc/systemd/system/$SERVICE" /usr/local/bin/check /usr/local/bin/cloudflared
+	rm -f "/etc/systemd/system/$TUNNEL" "/etc/systemd/system/$SERVICE" /usr/local/bin/ck /usr/local/bin/check
  rm -rf /usr/local/lib/checkuser /etc/checkuser
  systemctl daemon-reload
- echo 'Removido. O arquivo /root/usuarios.db foi preservado.'
+ echo 'Checkuser Lacasot8 removido. /root/usuarios.db e cloudflared foram preservados.'
  exit 0
 }
 start_all(){ systemctl start "$SERVICE" && systemctl restart "$TUNNEL"; }
