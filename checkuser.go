@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,6 +20,7 @@ type Config struct {
 	Host           string
 	Port           int
 	LimitsFile     string
+	ShadowFile     string
 	DragonCoreURL  string
 	DragonCorePath string
 	RequestTimeout time.Duration
@@ -35,6 +37,7 @@ type Result struct {
 	ExpirationDays   int    `json:"expiration_days"`
 	CountConnections int    `json:"count_connections"`
 	LimitConnections int    `json:"limit_connections"`
+	MessageHTML      string `json:"message_html,omitempty"`
 	Source           string `json:"source"`
 	Message          string `json:"message,omitempty"`
 	CheckedAt        string `json:"checked_at"`
@@ -46,6 +49,7 @@ func main() {
 	cfg := Config{
 		Host: os.Getenv("CHECKUSER_HOST"), Port: envInt("CHECKUSER_PORT", 2052),
 		LimitsFile:     envString("CHECKUSER_LIMITS_FILE", "/root/usuarios.db"),
+		ShadowFile:     envString("CHECKUSER_SHADOW_FILE", "/etc/shadow"),
 		DragonCoreURL:  strings.TrimRight(os.Getenv("CHECKUSER_DRAGONCORE_URL"), "/"),
 		DragonCorePath: envString("CHECKUSER_DRAGONCORE_PATH", "/check"),
 		RequestTimeout: time.Duration(envInt("CHECKUSER_TIMEOUT_SECONDS", 5)) * time.Second,
@@ -90,7 +94,74 @@ func (c Config) check(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, Result{OK: false, User: user, Username: user, UUID: uuid, HWID: hwid, Message: "usuário não encontrado", Source: "local", CheckedAt: time.Now().UTC().Format(time.RFC3339)})
 		return
 	}
-	writeJSON(w, http.StatusOK, Result{OK: true, User: user, Username: user, UUID: uuid, HWID: hwid, Limit: limit, LimitConnections: limit, Source: "local", Message: "usuário encontrado; expiração e conexões ativas não disponíveis no fallback local", CheckedAt: time.Now().UTC().Format(time.RFC3339)})
+	shadowFile := c.ShadowFile
+	if shadowFile == "" {
+		shadowFile = "/etc/shadow"
+	}
+	expirationDate, expirationDays := readAccountExpiration(shadowFile, user, time.Now())
+	connections := countSSHConnections(user)
+	fields := map[string]interface{}{
+		"username": user, "expiration_date": expirationDate,
+		"expiration_days": expirationDays, "count_connections": connections,
+		"limit_connections": limit,
+	}
+	writeJSON(w, http.StatusOK, Result{
+		OK: true, User: user, Username: user, UUID: uuid, HWID: hwid,
+		Limit: limit, ExpirationDate: expirationDate, ExpirationDays: expirationDays,
+		CountConnections: connections, LimitConnections: limit,
+		MessageHTML: panelHTML(fields, user), Source: "local",
+		Message: "dados locais da conta Linux", CheckedAt: time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+// readAccountExpiration reads the account-expiry day from /etc/shadow, the
+// same value displayed by `chage -l`. It returns an empty date for accounts
+// without an expiry date or when the shadow entry cannot be read.
+func readAccountExpiration(shadowPath, username string, now time.Time) (string, int) {
+	data, err := ioutil.ReadFile(shadowPath)
+	if err != nil {
+		return "", 0
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Split(line, ":")
+		if len(fields) < 8 || fields[0] != username || fields[7] == "" {
+			continue
+		}
+		days, err := strconv.Atoi(fields[7])
+		if err != nil {
+			return "", 0
+		}
+		location := now.Location()
+		expires := time.Date(1970, time.January, 1, 0, 0, 0, 0, location).AddDate(0, 0, days)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
+		remaining := int(expires.Sub(today).Hours() / 24)
+		if remaining < 0 {
+			remaining = 0
+		}
+		return expires.Format("02/01/2006"), remaining
+	}
+	return "", 0
+}
+
+// countSSHConnections counts authenticated session processes owned by the
+// account. This supports the sshd and Dropbear servers common on SSH tunnel VPSes.
+func countSSHConnections(username string) int {
+	output, err := exec.Command("ps", "-u", username, "-o", "comm=").Output()
+	if err != nil {
+		return 0
+	}
+	return countSSHProcesses(string(output))
+}
+
+func countSSHProcesses(output string) int {
+	count := 0
+	for _, process := range strings.Fields(output) {
+		switch process {
+		case "sshd", "sshd-session", "dropbear":
+			count++
+		}
+	}
+	return count
 }
 
 func (c Config) proxyDragonCore(w http.ResponseWriter, user, uuid, hwid string) bool {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestCheckLocalSupportsUsernameAndTemplateFields(t *testing.T) {
@@ -17,10 +18,14 @@ func TestCheckLocalSupportsUsernameAndTemplateFields(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 	limits := filepath.Join(tempDir, "usuarios.db")
+	shadow := filepath.Join(tempDir, "shadow")
 	if err := ioutil.WriteFile(limits, []byte("cliente01 3\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	cfg := Config{LimitsFile: limits}
+	if err := ioutil.WriteFile(shadow, []byte("outro:x:1:1:1:1::20000:\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{LimitsFile: limits, ShadowFile: shadow}
 	req := httptest.NewRequest(http.MethodGet, "/check?username=cliente01", nil)
 	rec := httptest.NewRecorder()
 	cfg.check(rec, req)
@@ -34,10 +39,36 @@ func TestCheckLocalSupportsUsernameAndTemplateFields(t *testing.T) {
 	for key, want := range map[string]interface{}{
 		"username": "cliente01", "user": "cliente01", "expiration_date": "",
 		"expiration_days": float64(0), "count_connections": float64(0), "limit_connections": float64(3),
+		"message_html": "👤 Nome de usuario: cliente01<br>📆 Expira em: <br>📅 Dias restantes: 0<br>🚫 Conexoes: 0|3",
 	} {
 		if got[key] != want {
 			t.Errorf("%s = %#v, want %#v", key, got[key], want)
 		}
+	}
+}
+
+func TestReadAccountExpiration(t *testing.T) {
+	tempDir, err := ioutil.TempDir("", "checkuser-shadow-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+	shadow := filepath.Join(tempDir, "shadow")
+	if err := ioutil.WriteFile(shadow, []byte("cliente01:!:1:1:99999:7::20000:\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(1970, time.January, 1, 12, 0, 0, 0, time.UTC).AddDate(0, 0, 19995)
+	wantDate := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, 20000).Format("02/01/2006")
+	gotDate, gotDays := readAccountExpiration(shadow, "cliente01", now)
+	if gotDate != wantDate || gotDays != 5 {
+		t.Fatalf("readAccountExpiration() = (%q, %d), want (%q, 5)", gotDate, gotDays, wantDate)
+	}
+}
+
+func TestCountSSHProcesses(t *testing.T) {
+	got := countSSHProcesses("sshd\nbash\ndropbear\nsystemd\n")
+	if got != 2 {
+		t.Fatalf("countSSHProcesses() = %d, want 2", got)
 	}
 }
 

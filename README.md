@@ -37,7 +37,7 @@ A resposta é JSON e aceita `username` (ou o alias `user`), `uuid` e `hwid`. Qua
 👤 Nome de usuario: {username}<br>📆 Expira em: {expiration_date}<br>📅 Dias restantes: {expiration_days}<br>🚫 Conexoes: {count_connections}|{limit_connections}
 ```
 
-No fallback `/root/usuarios.db`, o serviço só conhece o limite local: expiração e conexões atuais não são obtidas desse arquivo e são retornadas como vazias/zero; para os valores reais, configure uma URL DragonCore acessível em `CHECKUSER_DRAGONCORE_URL`. O endpoint `/health` pode ser usado para verificar o serviço. Usuários desconhecidos retornam HTTP 404; parâmetros inválidos retornam 400.
+No fallback local, o limite vem de `/root/usuarios.db`, a expiração vem da data de expiração da conta Linux em `/etc/shadow` (o mesmo dado exibido por `chage -l`) e as conexões são contadas a partir de processos SSH/Dropbear do usuário. Se a conta Linux não tiver data de expiração ou sessão ativa, os valores correspondentes ficam vazios ou zero. O endpoint `/health` pode ser usado para verificar o serviço. Usuários desconhecidos retornam HTTP 404; parâmetros inválidos retornam 400.
 
 ## DragonCore e túnel
 
