@@ -12,7 +12,7 @@ chmod +x /tmp/install-checkuser.sh
 bash /tmp/install-checkuser.sh
 ```
 
-A instalação compila o serviço para `amd64` ou `arm64`, instala o `cloudflared`, grava a configuração em `/etc/checkuser/checkuser.env`, cria `check-dt-voidpro.service` e `check-dt-voidpro-tunnel.service`, e instala o painel em `/usr/local/bin/check`. Depois, abra o menu com `check`.
+A instalação compila o serviço para `amd64` ou `arm64`, instala o `cloudflared`, grava a configuração em `/etc/checkuser/checkuser.env`, cria `check-dt-voidpro.service` e `check-dt-voidpro-tunnel.service`, e instala o painel em `/usr/local/bin/check`. O código usa APIs compatíveis com Go 1.13 ou superior. Depois, abra o menu com `check`.
 
 O instalador é idempotente. Se a configuração já existir, ela é preservada. O arquivo `/root/usuarios.db` nunca é removido pelo menu.
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -88,7 +89,7 @@ func (c Config) fromDragonCore(user, uuid, hwid string) (Result, bool) {
 }
 
 func readLimit(path, user string) (int, bool, error) {
-	data, err := os.ReadFile(path); if err != nil { return 0, false, err }
+	data, err := ioutil.ReadFile(path); if err != nil { return 0, false, err }
 	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(line); if len(fields) < 2 || strings.HasPrefix(fields[0], "#") || fields[0] != user { continue }
 		limit, err := strconv.Atoi(fields[1]); if err != nil { return 0, false, errors.New("limite inválido") }; return limit, true, nil
