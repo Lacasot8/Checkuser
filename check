@@ -17,14 +17,14 @@ show(){
  printf '\033[91m│\033[0m %-52s\033[91m│\033[0m\n' 'CHECKUSER CONTROL PANEL'
  printf '\033[91m│\033[0m \033[94m%-52s\033[0m\033[91m│\033[0m\n' 'DTunnel  •  Void Pro+  •  DragonCore'
  printf '\033[91m├──────────────────────────────────────────────────────┤\033[0m\n'
- printf '\033[91m│\033[0m CheckUser          %b\n' "$(state "$SERVICE")"
- printf '\033[91m│\033[0m Cloudflare         %b\n' "$(state "$TUNNEL")"
- printf '\033[91m│\033[0m Porta              %-30s\033[91m│\033[0m\n' "$PORT"
- printf '\033[91m│\033[0m Fonte              %-30s\033[91m│\033[0m\n' 'DragonCore + fallback local'
+ printf '\033[91m│\033[0m CheckUser:  %b\n' "$(state "$SERVICE")"
+ printf '\033[91m│\033[0m Cloudflare: %b\n' "$(state "$TUNNEL")"
+ printf '\033[91m│\033[0m Porta:      %s\n' "$PORT"
+ printf '\033[91m│\033[0m Fonte:      DragonCore + fallback local\n'
  printf '\033[91m╰──────────────────────────────────────────────────────╯\033[0m\n\n'
  printf '\033[94mLINK PÚBLICO / DTUNNEL\033[0m\n'
- local url; url="$(link)"; [[ -n "$url" ]] && printf '\033[96m%s/check?user={user}\033[0m\n' "$url" || printf '\033[33mLink ainda não gerado\033[0m\n'
- printf '\n\033[94mURL DO VOID PRO+\033[0m\nhttp://IP_DA_VPS:%s/check?user={user}&uuid={uuid}&hwid={hwid}\n' "$PORT"
+ local url; url="$(link)"; [[ -n "$url" ]] && printf '\033[96m%s\033[0m\n' "$url" || printf '\033[33mLink ainda não gerado\033[0m\n'
+ printf '\n\033[94mURL DO VOID PRO+\033[0m\n%s/check?user={user}&uuid={uuid}&hwid={hwid}\n' "${url:-http://IP_DA_VPS:$PORT}"
  printf '\033[33mDiagnóstico: journalctl -u %s\033[0m\n\n' "$TUNNEL"
  printf '\033[91m╭──────────────────────────────────────────────────────╮\033[0m\n'
  printf '\033[91m│\033[0m [1] Iniciar serviços                              \033[91m│\033[0m\n'

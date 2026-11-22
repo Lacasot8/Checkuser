@@ -56,7 +56,6 @@ func main() {
 }
 
 func (c Config) check(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if r.Method != http.MethodGet { writeJSON(w, http.StatusMethodNotAllowed, Result{Message: "use GET", CheckedAt: time.Now().UTC().Format(time.RFC3339) }); return }
 	q := r.URL.Query()
 	user, uuid, hwid := q.Get("user"), q.Get("uuid"), q.Get("hwid")
@@ -65,7 +64,7 @@ func (c Config) check(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, Result{OK: false, User: user, Message: "parâmetros inválidos", Source: "validation", CheckedAt: time.Now().UTC().Format(time.RFC3339) }); return
 	}
 	if c.DragonCoreURL != "" {
-		if result, ok := c.fromDragonCore(user, uuid, hwid); ok { writeJSON(w, http.StatusOK, result); return }
+		if c.proxyDragonCore(w, user, uuid, hwid) { return }
 	}
 	limit, found, err := readLimit(c.LimitsFile, user)
 	if err != nil { writeJSON(w, http.StatusServiceUnavailable, Result{OK: false, User: user, UUID: uuid, HWID: hwid, Message: "fonte local indisponível", Source: "local", CheckedAt: time.Now().UTC().Format(time.RFC3339) }); return }
@@ -73,26 +72,31 @@ func (c Config) check(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, Result{OK: true, User: user, UUID: uuid, HWID: hwid, Limit: limit, Source: "local", Message: "usuário encontrado", CheckedAt: time.Now().UTC().Format(time.RFC3339) })
 }
 
-func (c Config) fromDragonCore(user, uuid, hwid string) (map[string]interface{}, bool) {
+func (c Config) proxyDragonCore(w http.ResponseWriter, user, uuid, hwid string) bool {
 	// O cliente possui timeout próprio para evitar que um DragonCore indisponível bloqueie o fallback local.
 	client := &http.Client{Timeout: c.RequestTimeout}
-	u, err := url.Parse(c.DragonCoreURL + c.DragonCorePath); if err != nil { return nil, false }
+	u, err := url.Parse(c.DragonCoreURL + c.DragonCorePath); if err != nil { return false }
 	v := u.Query(); v.Set("user", user); v.Set("uuid", uuid); v.Set("hwid", hwid); u.RawQuery = v.Encode()
-	resp, err := client.Get(u.String()); if err != nil { return nil, false }; defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 { return nil, false }
-	// Não normalizar nem descartar os campos do painel: expiration_date,
-	// expiration_days, count_connections, limit_connections e HTML de mensagem.
-	var raw map[string]interface{}; if json.NewDecoder(resp.Body).Decode(&raw) != nil { return nil, false }
-	if _, ok := raw["user"]; !ok { raw["user"] = user }
-	if _, ok := raw["username"]; !ok { raw["username"] = user }
-	if _, ok := raw["uuid"]; !ok && uuid != "" { raw["uuid"] = uuid }
-	if _, ok := raw["hwid"]; !ok && hwid != "" { raw["hwid"] = hwid }
-	if _, ok := raw["source"]; !ok { raw["source"] = "dragoncore" }
-	if _, ok := raw["checked_at"]; !ok { raw["checked_at"] = time.Now().UTC().Format(time.RFC3339) }
-	if _, ok := raw["message_html"]; !ok {
-		if html := panelHTML(raw, user); html != "" { raw["message_html"] = html }
+	resp, err := client.Get(u.String()); if err != nil { return false }; defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 { return false }
+	body, err := ioutil.ReadAll(resp.Body); if err != nil { return false }
+	// Repassar HTML/texto sem alterar. Em JSON, preservamos todos os campos e só
+	// acrescentamos os aliases e a mensagem HTML quando houver dados suficientes.
+	if strings.Contains(strings.ToLower(resp.Header.Get("Content-Type")), "json") {
+		var raw map[string]interface{}
+		if json.Unmarshal(body, &raw) == nil {
+			if _, ok := raw["user"]; !ok { raw["user"] = user }
+			if _, ok := raw["username"]; !ok { raw["username"] = user }
+			if _, ok := raw["uuid"]; !ok && uuid != "" { raw["uuid"] = uuid }
+			if _, ok := raw["hwid"]; !ok && hwid != "" { raw["hwid"] = hwid }
+			if _, ok := raw["message_html"]; !ok { if html := panelHTML(raw, user); html != "" { raw["message_html"] = html } }
+			if updated, marshalErr := json.Marshal(raw); marshalErr == nil { body = updated; resp.Header.Del("Content-Length") }
+		}
 	}
-	return raw, true
+	for key, values := range resp.Header { for _, value := range values { w.Header().Add(key, value) } }
+	w.WriteHeader(resp.StatusCode)
+	_, _ = w.Write(body)
+	return true
 }
 
 func panelHTML(raw map[string]interface{}, fallbackUser string) string {

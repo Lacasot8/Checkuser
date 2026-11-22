@@ -35,9 +35,9 @@ A resposta é JSON. Quando o DragonCore responder, o CheckUser preservará os ca
 
 ## DragonCore e túnel
 
-O serviço tenta consultar `CHECKUSER_DRAGONCORE_URL` e, se a fonte estiver disponível, devolve a resposta normalizada como `source: dragoncore`. Se DragonCore estiver indisponível, usa o arquivo local. Para desativar o upstream, deixe `CHECKUSER_DRAGONCORE_URL` vazio e reinicie o serviço.
+O serviço tenta consultar `CHECKUSER_DRAGONCORE_URL` e, se a fonte estiver disponível, repassa a resposta original do DragonCore, seja JSON, HTML ou texto. Se DragonCore estiver indisponível, usa o arquivo local. Para desativar o upstream, deixe `CHECKUSER_DRAGONCORE_URL` vazio e reinicie o serviço.
 
-O instalador baixa `cloudflared` para `/usr/local/bin/cloudflared` e inicia um Quick Tunnel com `cloudflared tunnel --url http://127.0.0.1:2052`. O menu lê o endereço `trycloudflare.com` nos logs do serviço `check-dt-voidpro-tunnel.service`. Esse endereço é temporário e muda quando o túnel é reiniciado; para produção, prefira um túnel nomeado com domínio próprio.
+O instalador baixa `cloudflared` para `/usr/local/bin/cloudflared` e inicia um Quick Tunnel com `cloudflared tunnel --url http://127.0.0.1:2052`. O menu mostra primeiro somente o domínio público, como `https://nome.trycloudflare.com`, e em uma linha separada mostra a rota `/check`. Esse endereço é temporário e muda quando o túnel é reiniciado; para produção, prefira um túnel nomeado com domínio próprio.
 
 ## Configuração
 
