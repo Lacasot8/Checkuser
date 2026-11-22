@@ -28,10 +28,16 @@ cliente02 90
 A consulta é feita por GET:
 
 ```text
-http://IP-DA-VPS:2052/check?user=cliente01&uuid=UUID&hwid=HWID
+http://IP-DA-VPS:2052/check?username=cliente01&uuid=UUID&hwid=HWID
 ```
 
-A resposta é JSON. Quando o DragonCore responder, o CheckUser preservará os campos do painel, incluindo `username`, `expiration_date`, `expiration_days`, `count_connections` e `limit_connections`, sem descartá-los. Também será criado o campo `message_html` com a mensagem colorida para clientes que aceitam HTML. O endpoint `/health` pode ser usado para verificar o serviço. Usuários desconhecidos retornam HTTP 404; parâmetros inválidos retornam 400.
+A resposta é JSON e aceita `username` (ou o alias `user`), `uuid` e `hwid`. Quando o DragonCore responder, o CheckUser preservará os campos reais do painel, incluindo `username`, `expiration_date`, `expiration_days`, `count_connections` e `limit_connections`. Também envia `message_html` neste formato, para clientes que aceitam HTML:
+
+```html
+👤 Nome de usuario: {username}<br>📆 Expira em: {expiration_date}<br>📅 Dias restantes: {expiration_days}<br>🚫 Conexoes: {count_connections}|{limit_connections}
+```
+
+No fallback `/root/usuarios.db`, o serviço só conhece o limite local: expiração e conexões atuais não são obtidas desse arquivo e são retornadas como vazias/zero; para os valores reais, configure uma URL DragonCore acessível em `CHECKUSER_DRAGONCORE_URL`. O endpoint `/health` pode ser usado para verificar o serviço. Usuários desconhecidos retornam HTTP 404; parâmetros inválidos retornam 400.
 
 ## DragonCore e túnel
 
