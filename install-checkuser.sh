@@ -6,8 +6,8 @@ APP_DIR="/usr/local/lib/checkuser"
 ETC_DIR="/etc/checkuser"
 BIN="$APP_DIR/checkuser"
 ENV_FILE="$ETC_DIR/checkuser.env"
-SERVICE="checkuser.service"
-TUNNEL_SERVICE="checkuser-tunnel.service"
+SERVICE="check-dt-voidpro.service"
+TUNNEL_SERVICE="check-dt-voidpro-tunnel.service"
 
 fail(){ echo "Erro: $*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || fail "execute como root (sudo -i)."
@@ -25,6 +25,24 @@ fi
 
 arch="$(uname -m)"
 case "$arch" in x86_64|amd64) goarch=amd64 ;; aarch64|arm64) goarch=arm64 ;; *) fail "arquitetura não suportada: $arch (use amd64 ou arm64)." ;; esac
+
+if ! command -v curl >/dev/null && ! command -v wget >/dev/null; then
+  if command -v apt-get >/dev/null; then apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl; else fail "curl ou wget é necessário para instalar o túnel."; fi
+fi
+if [[ ! -x /usr/local/bin/cloudflared ]]; then
+  echo "Instalando cloudflared..."
+  case "$arch" in
+    x86_64|amd64) tunnel_arch=amd64 ;;
+    aarch64|arm64) tunnel_arch=arm64 ;;
+  esac
+  tunnel_url="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$tunnel_arch"
+  if command -v curl >/dev/null; then curl -fL --retry 3 "$tunnel_url" -o /usr/local/bin/cloudflared; else wget -qO /usr/local/bin/cloudflared "$tunnel_url"; fi
+  chmod 0755 /usr/local/bin/cloudflared
+  /usr/local/bin/cloudflared --version >/dev/null || fail "download do cloudflared falhou."
+fi
+
+# Migra unidades antigas da primeira versão sem tocar no banco do usuário.
+systemctl disable --now checkuser.service checkuser-tunnel.service 2>/dev/null || true
 mkdir -p "$APP_DIR" "$ETC_DIR"
 work="$(mktemp -d)"; trap 'rm -rf "$work"' EXIT
 if [[ -n "${CHECKUSER_SOURCE_DIR:-}" && -f "$CHECKUSER_SOURCE_DIR/checkuser.go" ]]; then
@@ -73,8 +91,8 @@ EOF
 cat > /etc/systemd/system/$TUNNEL_SERVICE <<'EOF'
 [Unit]
 Description=Cloudflare quick tunnel for CheckUser
-After=checkuser.service network-online.target
-Requires=checkuser.service
+After=check-dt-voidpro.service network-online.target
+Requires=check-dt-voidpro.service
 
 [Service]
 Type=simple
@@ -88,4 +106,5 @@ EOF
 install -m 0755 "$menu_source" /usr/local/bin/check
 systemctl daemon-reload
 systemctl enable --now "$SERVICE"
+systemctl enable --now "$TUNNEL_SERVICE"
 echo "CheckUser instalado. Execute: check"

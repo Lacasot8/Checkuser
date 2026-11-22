@@ -12,7 +12,7 @@ chmod +x /tmp/install-checkuser.sh
 bash /tmp/install-checkuser.sh
 ```
 
-A instalação compila o serviço para `amd64` ou `arm64`, grava a configuração em `/etc/checkuser/checkuser.env`, cria `checkuser.service` e instala o painel em `/usr/local/bin/check`. Depois, abra o menu com `check`.
+A instalação compila o serviço para `amd64` ou `arm64`, instala o `cloudflared`, grava a configuração em `/etc/checkuser/checkuser.env`, cria `check-dt-voidpro.service` e `check-dt-voidpro-tunnel.service`, e instala o painel em `/usr/local/bin/check`. Depois, abra o menu com `check`.
 
 O instalador é idempotente. Se a configuração já existir, ela é preservada. O arquivo `/root/usuarios.db` nunca é removido pelo menu.
 
@@ -37,7 +37,7 @@ A resposta é JSON e informa `ok`, `user`, `limit`, `source`, `message` e `check
 
 O serviço tenta consultar `CHECKUSER_DRAGONCORE_URL` e, se a fonte estiver disponível, devolve a resposta normalizada como `source: dragoncore`. Se DragonCore estiver indisponível, usa o arquivo local. Para desativar o upstream, deixe `CHECKUSER_DRAGONCORE_URL` vazio e reinicie o serviço.
 
-O túnel Cloudflare é opcional. Se `cloudflared` estiver instalado em `/usr/local/bin/cloudflared`, a opção de atualização do menu inicia o serviço `checkuser-tunnel.service` e mostra o endereço `trycloudflare.com` encontrado nos logs. Para produção, prefira um túnel nomeado com domínio próprio; o quick tunnel é temporário.
+O instalador baixa `cloudflared` para `/usr/local/bin/cloudflared` e inicia um Quick Tunnel com `cloudflared tunnel --url http://127.0.0.1:2052`. O menu lê o endereço `trycloudflare.com` nos logs do serviço `check-dt-voidpro-tunnel.service`. Esse endereço é temporário e muda quando o túnel é reiniciado; para produção, prefira um túnel nomeado com domínio próprio.
 
 ## Configuração
 

@@ -1,22 +1,67 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-SERVICE=checkuser.service
-TUNNEL=checkuser-tunnel.service
+SERVICE=check-dt-voidpro.service
+TUNNEL=check-dt-voidpro-tunnel.service
 ENV_FILE=/etc/checkuser/checkuser.env
+PORT=2052
+[[ -f "$ENV_FILE" ]] && PORT="$(awk -F= '$1=="CHECKUSER_PORT"{print $2}' "$ENV_FILE" | tail -1)"
 
-need_root(){ [[ $EUID -eq 0 ]] || { echo "Execute como root."; exit 1; }; }
-status_line(){ systemctl is-active --quiet "$1" && printf '\033[32mATIVO\033[0m' || printf '\033[31mPARADO\033[0m'; }
-public_link(){ journalctl -u "$TUNNEL" --no-pager -n 80 2>/dev/null | grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true; }
-port(){ awk -F= '$1=="CHECKUSER_PORT"{print $2}' "$ENV_FILE" 2>/dev/null || echo 2052; }
-show(){ clear; echo; echo '  CHECKUSER — PAINEL DE ADMINISTRAÇÃO'; echo '  ----------------------------------'; echo "  Serviço:       $(status_line "$SERVICE")"; echo "  Túnel Cloudflare: $(status_line "$TUNNEL")"; echo "  Porta local:   $(port)"; echo '  Fonte de dados: /root/usuarios.db + DragonCore opcional'; link=$(public_link); echo "  Link público:  ${link:-não disponível}"; echo; echo '  1) Iniciar serviço'; echo '  2) Parar serviço'; echo '  3) Reiniciar serviço'; echo '  4) Consultar status'; echo '  5) Visualizar logs'; echo '  6) Atualizar/gerar link público'; echo '  7) Remover instalação'; echo '  0) Sair'; echo; }
-remove(){ echo; read -r -p 'Digite REMOVER para confirmar: ' x; [[ $x == REMOVER ]] || { echo 'Cancelado.'; return; }; systemctl disable --now "$TUNNEL" "$SERVICE" 2>/dev/null || true; rm -f /etc/systemd/system/$TUNNEL /etc/systemd/system/$SERVICE /usr/local/bin/check; rm -rf /usr/local/lib/checkuser /etc/checkuser; systemctl daemon-reload; echo 'Instalação removida. /root/usuarios.db foi preservado.'; exit 0; }
+need_root(){ [[ $EUID -eq 0 ]] || { echo 'Execute como root.'; exit 1; }; }
+active(){ systemctl is-active --quiet "$1" 2>/dev/null; }
+state(){ active "$1" && printf '\033[32mativo\033[0m' || printf '\033[31minativo\033[0m'; }
+link(){ journalctl -u "$TUNNEL" --no-pager -n 100 2>/dev/null | grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true; }
+box(){ printf '\033[95m%s\033[0m\n' '╔══════════════════════════════════════════════════════╗'; }
+show(){
+ clear
+ box
+ printf '\033[95m║\033[0m %-52s\033[95m║\033[0m\n' 'CHECKUSER CONTROL PANEL'
+ printf '\033[95m║\033[0m %-52s\033[95m║\033[0m\n' 'DTunnel  •  Void Pro+  •  DragonCore'
+ printf '\033[95m╠══════════════════════════════════════════════════════╣\033[0m\n'
+ printf '\033[95m║\033[0m CheckUser          %b\n' "$(state "$SERVICE")"
+ printf '\033[95m║\033[0m Cloudflare         %b\n' "$(state "$TUNNEL")"
+ printf '\033[95m║\033[0m Porta              %-30s\033[95m║\033[0m\n' "$PORT"
+ printf '\033[95m║\033[0m Fonte              %-30s\033[95m║\033[0m\n' 'DragonCore + fallback local'
+ printf '\033[95m╚══════════════════════════════════════════════════════╝\033[0m\n\n'
+ printf '\033[96mLINK PÚBLICO / DTUNNEL\033[0m\n'
+ local url; url="$(link)"; [[ -n "$url" ]] && printf '%s\n' "$url" || printf '\033[33mLink ainda não gerado\033[0m\n'
+ printf '\n\033[96mURL DO VOID PRO+\033[0m\nhttp://IP_DA_VPS:%s/check?user={username}&uuid={uuid}&hwid={hwid}\n' "$PORT"
+ printf '\033[33mDiagnóstico: journalctl -u %s\033[0m\n\n' "$TUNNEL"
+ printf '\033[95m╔══════════════════════════════════════════════════════╗\033[0m\n'
+ printf '\033[95m║\033[0m [1] Iniciar serviços                              \033[95m║\033[0m\n'
+ printf '\033[95m║\033[0m [2] Parar serviços                                \033[95m║\033[0m\n'
+ printf '\033[95m║\033[0m [3] Reiniciar e gerar link                        \033[95m║\033[0m\n'
+ printf '\033[95m║\033[0m [4] Status detalhado                               \033[95m║\033[0m\n'
+ printf '\033[95m║\033[0m [5] Ver logs do Cloudflare                        \033[95m║\033[0m\n'
+ printf '\033[95m║\033[0m [6] Atualizar tela/links                          \033[95m║\033[0m\n'
+ printf '\033[95m║\033[0m [7] Remover CheckUser + Tunnel                    \033[95m║\033[0m\n'
+ printf '\033[95m║\033[0m [0] Sair                                           \033[95m║\033[0m\n'
+ printf '\033[95m╚══════════════════════════════════════════════════════╝\033[0m\n\n'
+}
+wait_key(){ read -r -p 'ENTER para continuar...' _; }
+remove(){
+ echo; read -r -p 'Digite REMOVER para confirmar: ' answer
+ [[ "$answer" == REMOVER ]] || { echo 'Cancelado.'; wait_key; return; }
+ systemctl disable --now "$TUNNEL" "$SERVICE" 2>/dev/null || true
+ rm -f "/etc/systemd/system/$TUNNEL" "/etc/systemd/system/$SERVICE" /usr/local/bin/check /usr/local/bin/cloudflared
+ rm -rf /usr/local/lib/checkuser /etc/checkuser
+ systemctl daemon-reload
+ echo 'Removido. O arquivo /root/usuarios.db foi preservado.'
+ exit 0
+}
+start_all(){ systemctl start "$SERVICE" && systemctl restart "$TUNNEL"; }
 need_root
-while true; do show; read -r -p 'Escolha uma opção: ' op; case "$op" in
-1) systemctl start "$SERVICE"; [[ -x /usr/local/bin/cloudflared ]] && systemctl start "$TUNNEL" 2>/dev/null || true; read -r -p 'Enter para continuar...' _;;
-2) systemctl stop "$TUNNEL" "$SERVICE"; read -r -p 'Enter para continuar...' _;;
-3) systemctl restart "$SERVICE"; [[ -x /usr/local/bin/cloudflared ]] && systemctl restart "$TUNNEL" 2>/dev/null || true; read -r -p 'Enter para continuar...' _;;
-4) systemctl --no-pager --full status "$SERVICE" "$TUNNEL"; read -r -p 'Enter para continuar...' _;;
-5) journalctl -u "$SERVICE" -n 80 --no-pager; read -r -p 'Enter para continuar...' _;;
-6) if [[ ! -x /usr/local/bin/cloudflared ]]; then echo 'cloudflared não está instalado. Instale-o e tente novamente.'; else systemctl restart "$TUNNEL"; sleep 2; echo "Link: $(public_link)"; fi; read -r -p 'Enter para continuar...' _;;
-7) remove;;
-0|q|Q) exit 0;; *) echo 'Opção inválida.'; sleep 1;; esac; done
+while true; do
+ show
+ read -r -p 'Opção: ' op
+ case "$op" in
+  1) start_all; wait_key ;;
+  2) systemctl stop "$TUNNEL" "$SERVICE"; wait_key ;;
+  3) systemctl restart "$SERVICE" && systemctl restart "$TUNNEL"; sleep 2; wait_key ;;
+  4) systemctl --no-pager --full status "$SERVICE" "$TUNNEL"; wait_key ;;
+  5) journalctl -u "$TUNNEL" -n 100 --no-pager; wait_key ;;
+  6) systemctl restart "$TUNNEL"; sleep 2; wait_key ;;
+  7) remove ;;
+  0|q|Q) exit 0 ;;
+  *) echo 'Opção inválida.'; sleep 1 ;;
+ esac
+done
