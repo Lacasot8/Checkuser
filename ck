@@ -12,9 +12,9 @@ need_root(){ [[ $EUID -eq 0 ]] || { echo 'Execute como root.'; exit 1; }; }
 active(){ systemctl is-active --quiet "$1" 2>/dev/null; }
 state(){ active "$1" && printf 'ativo' || printf 'inativo'; }
 link(){ journalctl -u "$TUNNEL" --no-pager -n 100 2>/dev/null | grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true; }
-border(){ printf '\033[91m╭'; printf '─%.0s' $(seq 1 "$FRAME_WIDTH"); printf '╮\033[0m\n'; }
-separator(){ printf '\033[91m├'; printf '─%.0s' $(seq 1 "$FRAME_WIDTH"); printf '┤\033[0m\n'; }
-row(){ printf '\033[91m│\033[0m %-*.*s \033[91m│\033[0m\n' "$TEXT_WIDTH" "$TEXT_WIDTH" "$1"; }
+border(){ printf '\033[94m╭'; printf '─%.0s' $(seq 1 "$FRAME_WIDTH"); printf '╮\033[0m\n'; }
+separator(){ printf '\033[94m├'; printf '─%.0s' $(seq 1 "$FRAME_WIDTH"); printf '┤\033[0m\n'; }
+row(){ printf '\033[94m│\033[0m %-*.*s \033[94m│\033[0m\n' "$TEXT_WIDTH" "$TEXT_WIDTH" "$1"; }
 
 show(){
  clear
