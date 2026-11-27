@@ -12,6 +12,7 @@ need_root(){ [[ $EUID -eq 0 ]] || { echo 'Execute como root.'; exit 1; }; }
 active(){ systemctl is-active --quiet "$1" 2>/dev/null; }
 state(){ active "$1" && printf 'ativo' || printf 'inativo'; }
 link(){ journalctl -u "$TUNNEL" --no-pager -n 100 2>/dev/null | grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true; }
+plain_heading(){ printf '\033[94m%s\033[0m\n' "$1"; }
 border(){ printf '\033[94m╭'; printf '─%.0s' $(seq 1 "$FRAME_WIDTH"); printf '╮\033[0m\n'; }
 separator(){ printf '\033[94m├'; printf '─%.0s' $(seq 1 "$FRAME_WIDTH"); printf '┤\033[0m\n'; }
 row(){ printf '\033[94m│\033[0m %-*.*s \033[94m│\033[0m\n' "$TEXT_WIDTH" "$TEXT_WIDTH" "$1"; }
@@ -26,18 +27,20 @@ show(){
  row "Cloudflare: $(state "$TUNNEL")"
  row "Porta:      $PORT"
  separator
- row 'LINK PÚBLICO / DTUNNEL'
  local url; url="$(link)"
- local base="${url:-http://IP_DA_VPS:$PORT}"
+ plain_heading 'LINK PÚBLICO / DTUNNEL'
  if [[ -n "$url" ]]; then
-  while IFS= read -r part; do row "$part"; done < <(printf '%s' "$url" | fold -w "$TEXT_WIDTH")
+  printf '%s\n' "$url"
  else
-  row 'Link ainda não gerado'
+  printf '%s\n' 'Link ainda não gerado'
  fi
- row 'URL DO DTUNNEL'
- while IFS= read -r part; do row "$part"; done < <(printf '%s' "$base/check/{username}?deviceId={deviceId}" | fold -w "$TEXT_WIDTH")
- row "Porta local: http://127.0.0.1:$PORT"
- row "Logs: journalctl -u $TUNNEL"
+ plain_heading 'URL DO VIOD'
+ if [[ -n "$url" ]]; then
+  printf '%s/check/{username}?deviceId={deviceId}\n' "$url"
+ else
+  printf '%s\n' 'A URL aparecerá quando o túnel gerar o link público.'
+ fi
+ printf 'Diagnóstico: journalctl -u %s\n' "$TUNNEL"
  border
  row '[1] Iniciar serviços'
  row '[2] Parar serviços'
