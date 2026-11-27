@@ -1,6 +1,6 @@
 # CheckUser
 
-Versão independente do CheckUser para Linux. O projeto fornece um serviço HTTP pequeno, um fallback local baseado em arquivo e um menu administrativo acessível pelo comando `ck`. O instalador remove o atalho genérico legado `/usr/local/bin/check` e unidades antigas chamadas `checkuser.service` e `checkuser-tunnel.service`; ele não para os serviços `check-dt-voidpro*` da instalação Willapela.
+Versão independente do CheckUser para Linux. O projeto fornece um serviço HTTP pequeno, um fallback local baseado em arquivo e um menu administrativo acessível pelo comando `ck`. O instalador usa nomes exclusivos para seus serviços e não altera o comando `check` nem serviços de outras instalações.
 
 ## Instalação
 
@@ -12,7 +12,7 @@ chmod +x /tmp/install-checkuser.sh
 bash /tmp/install-checkuser.sh
 ```
 
-A instalação compila o serviço para `amd64` ou `arm64`, instala o `cloudflared` se necessário, grava a configuração em `/etc/checkuser/checkuser.env`, cria os serviços exclusivos `checkuser-lacasot8.service` e `checkuser-lacasot8-tunnel.service`, e instala o painel em `/usr/local/bin/ck`. Ela remove `/usr/local/bin/check` para não deixar o menu antigo e o servidor usa a porta padrão `2053`, separada da porta `2052` usada por outra instalação. Depois, abra o menu com `ck`.
+A instalação compila o serviço para `amd64` ou `arm64`, instala o `cloudflared` se necessário, grava a configuração em `/etc/checkuser/checkuser.env`, cria os serviços exclusivos `checkuser-lacasot8.service` e `checkuser-lacasot8-tunnel.service`, e instala o painel em `/usr/local/bin/ck`. A porta padrão é `2053`. No menu `ck`, a opção `[8] Alterar porta` permite escolher outra porta, incluindo `2052` quando estiver livre; o menu recusa a mudança se detectar outro processo escutando nela. O comando `check` e os serviços de outras instalações são preservados.
 
 O instalador é idempotente. Se a configuração já existir, ela é preservada. O arquivo `/root/usuarios.db` nunca é removido pelo menu.
 
@@ -28,13 +28,13 @@ cliente02 90
 A consulta é feita por GET:
 
 ```text
-http://IP-DA-VPS:2053/check?username=cliente01&uuid=UUID&hwid=HWID
+http://IP-DA-VPS:PORTA/check?username=cliente01&uuid=UUID&hwid=HWID
 ```
 
 O CheckUser também aceita a rota usada pelo cliente original do DTunnel, com o usuário no caminho e o ID do aparelho em `deviceId`:
 
 ```text
-http://IP-DA-VPS:2053/check/cliente01?deviceId=ID_DO_APARELHO
+http://IP-DA-VPS:PORTA/check/cliente01?deviceId=ID_DO_APARELHO
 ```
 
 Para configurar o DTunnel, use `https://SEU-LINK.trycloudflare.com/check/{username}?deviceId={deviceId}`. A resposta é JSON (`application/json`) e inclui `username`, `expiration_date`, `expiration_days`, `count_connections` e `limit_connections`. Quando o DragonCore responder, os campos originais são preservados. Também é enviado `message_html` neste formato, para clientes que aceitam HTML:
@@ -49,7 +49,7 @@ No fallback local, o limite vem de `/root/usuarios.db`, a expiração vem da dat
 
 O serviço tenta consultar `CHECKUSER_DRAGONCORE_URL` e, se a fonte estiver disponível, repassa a resposta original do DragonCore, seja JSON, HTML ou texto. Se DragonCore estiver indisponível, usa o arquivo local. Para desativar o upstream, deixe `CHECKUSER_DRAGONCORE_URL` vazio e reinicie o serviço.
 
-O instalador baixa `cloudflared` para `/usr/local/bin/cloudflared` somente se ainda não estiver instalado e inicia um Quick Tunnel com `cloudflared tunnel --url http://127.0.0.1:2053`. O menu mostra primeiro somente o domínio público, como `https://nome.trycloudflare.com`, e em uma linha separada mostra a rota `/check`. Esse endereço é temporário e muda quando o túnel é reiniciado; para produção, prefira um túnel nomeado com domínio próprio.
+O instalador baixa `cloudflared` para `/usr/local/bin/cloudflared` somente se ainda não estiver instalado e inicia um Quick Tunnel apontando à porta configurada no arquivo de ambiente. O menu mostra o domínio público e a rota `/check`. Esse endereço é temporário e muda quando o túnel é reiniciado; para produção, prefira um túnel nomeado com domínio próprio.
 
 ## Configuração
 
@@ -57,4 +57,4 @@ As variáveis suportadas estão em `checkuser.env.example`. Após mudar `/etc/ch
 
 ## Remoção
 
-Use `ck`, escolha `7` e confirme digitando `REMOVER`. A remoção apaga os serviços `checkuser-lacasot8*`, o binário, os menus `ck` e o atalho legado `check`, além da configuração em `/etc/checkuser`. O arquivo `/root/usuarios.db`, o binário compartilhado `cloudflared` e os serviços `check-dt-voidpro*` da instalação Willapela são preservados.
+Use `ck`, escolha `7` e confirme digitando `REMOVER`. A remoção apaga somente os serviços `checkuser-lacasot8*`, o binário, o menu `ck` e a configuração em `/etc/checkuser`. O arquivo `/root/usuarios.db`, o binário compartilhado `cloudflared`, o comando `check` e os serviços de outras instalações são preservados.

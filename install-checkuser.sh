@@ -65,12 +65,8 @@ CHECKUSER_TIMEOUT_SECONDS=5
 EOF
   chmod 0600 "$ENV_FILE"
 fi
-# Porta 2052 é usada pela instalação Willapela. Mova somente o valor legado
-# padrão deste Checkuser para a porta isolada; preserve demais configurações.
-if grep -qx 'CHECKUSER_PORT=2052' "$ENV_FILE"; then
-  sed -i 's/^CHECKUSER_PORT=2052$/CHECKUSER_PORT=2053/' "$ENV_FILE"
-  echo "Porta ajustada para 2053 para não conflitar com outro Checkuser."
-fi
+# Preserve the configured port (default 2053). The ck menu checks availability
+# before changing it, so 2052 can be selected when no other service uses it.
 APP_PORT="$(awk -F= '$1=="CHECKUSER_PORT"{print $2}' "$ENV_FILE" | tail -1)"
 [[ "$APP_PORT" =~ ^[0-9]{1,5}$ ]] && (( APP_PORT >= 1 && APP_PORT <= 65535 )) || fail "CHECKUSER_PORT inválida: $APP_PORT"
 
@@ -103,7 +99,8 @@ Requires=$SERVICE
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:$APP_PORT
+EnvironmentFile=-$ENV_FILE
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:\${CHECKUSER_PORT}
 Restart=on-failure
 RestartSec=5
 
@@ -111,10 +108,6 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 install -m 0755 "$menu_source" /usr/local/bin/ck
-# Só depois que o binário, os serviços novos e ck estão prontos, limpe os
-# nomes legados da instalação própria. Não toca em check-dt-voidpro*.
-systemctl disable --now checkuser.service checkuser-tunnel.service 2>/dev/null || true
-rm -f /etc/systemd/system/checkuser.service /etc/systemd/system/checkuser-tunnel.service /usr/local/bin/check
 systemctl daemon-reload
 systemctl enable --now "$SERVICE"
 systemctl enable --now "$TUNNEL_SERVICE"
