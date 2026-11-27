@@ -26,14 +26,16 @@ show(){
  row "Cloudflare: $(state "$TUNNEL")"
  row "Porta:      $PORT"
  separator
- row 'LINK / DTUNNEL'
+ row 'LINK PÚBLICO / DTUNNEL'
  local url; url="$(link)"
+ local base="${url:-http://IP_DA_VPS:$PORT}"
  if [[ -n "$url" ]]; then
   while IFS= read -r part; do row "$part"; done < <(printf '%s' "$url" | fold -w "$TEXT_WIDTH")
  else
   row 'Link ainda não gerado'
  fi
- while IFS= read -r part; do row "$part"; done < <(printf '%s' '/check/{username}?deviceId={deviceId}' | fold -w "$TEXT_WIDTH")
+ row 'URL DO DTUNNEL'
+ while IFS= read -r part; do row "$part"; done < <(printf '%s' "$base/check/{username}?deviceId={deviceId}" | fold -w "$TEXT_WIDTH")
  row "Porta local: http://127.0.0.1:$PORT"
  row "Logs: journalctl -u $TUNNEL"
  border
